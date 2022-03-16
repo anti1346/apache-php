@@ -1,8 +1,8 @@
 pipeline {
     environment {
-        registry = "anti1346/apm"
+        registry = "anti1346/apache-php"
         registryCredential = 'dockerimagepush'
-        dockerImage = ''
+        dockerImage = 'apache-php'
     }
 
     agent any
@@ -17,13 +17,27 @@ pipeline {
             }
         }
 
-        stage('Test image') {
+        stage('Docker run') {
             steps {
-                sh 'docker run -d -p 80:80 --name apm $registry:$BUILD_NUMBER'
-                // sh 'docker exec -it $registry:$BUILD curl -Ssf -I http://localhost/phpinfo.php'
-                // sh 'curl --fail http://localhost/phpinfo.php || exit 1'
-                // sh 'docker rm -f $registry:$BUILD_NUMBER'
+                sh 'docker rm -f $(docker ps -q --filter="name=apache-php") || true'
+                sh 'docker rmi $(docker images -f "dangling=true" -q) || true'
+                sh 'docker run -d -p 8888:80 --name apache-php $registry:$BUILD_NUMBER'
                 echo 'Test image...'
+            }
+        }
+
+        stage("Docker test") {
+            steps {
+                script {
+                    final String url = "localhost:8080"
+                    final String response = sh(script: "curl -s $url", returnStdout: true).trim()
+                    echo response
+                    // final def (String response, int code) = sh(script: "curl -s -w '\\n%{response_code}' $url", returnStdout: true).trim().tokenize("\n")
+                    // echo "HTTP response status code: $code"
+                    // if (code == 200) {
+                    //     echo response
+                    // }
+                }
             }
         }
 
@@ -39,7 +53,7 @@ pipeline {
 
         stage('Clean image') {
             steps {
-                sh 'docker rm -f `docker ps -aq --filter="name=apm"`'
+                sh 'docker rm -f `docker ps -aq --filter="name=apache-php"`'
                 // sh 'docker rmi -f `docker images --filter=reference="$registry"`'
                 sh 'docker rmi $registry:$BUILD_NUMBER'
                 sh 'docker rmi $registry:latest'
